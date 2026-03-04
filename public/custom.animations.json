@@ -1,0 +1,63 @@
+{
+  "version": "0.1",
+  "states": {
+    "idle": {
+      "smoothing": 0.18,
+      "base": {
+        "ParamAngleY": -2,
+        "ParamBodyAngleX": 1
+      },
+      "oscillators": [
+        { "paramId": "ParamAngleX", "amplitude": 7, "speedHz": 0.07 },
+        { "paramId": "ParamAngleY", "amplitude": 3, "speedHz": 0.11 }
+      ]
+    },
+    "listening": {
+      "smoothing": 0.22,
+      "base": {
+        "ParamAngleY": 2,
+        "ParamBodyAngleX": 4
+      },
+      "oscillators": [
+        { "paramId": "ParamAngleX", "amplitude": 4, "speedHz": 0.14 },
+        { "paramId": "ParamBodyAngleX", "amplitude": 2, "speedHz": 0.12, "phase": 1.0472 }
+      ]
+    },
+    "speaking": {
+      "smoothing": 0.28,
+      "base": {
+        "ParamBodyAngleX": 3,
+        "ParamMouthForm": 0.4
+      },
+      "oscillators": [
+        { "paramId": "ParamAngleX", "amplitude": 10, "speedHz": 0.24 },
+        { "paramId": "ParamAngleY", "amplitude": 5, "speedHz": 0.2, "phase": 1.5708 },
+        { "paramId": "ParamBodyAngleX", "amplitude": 4, "speedHz": 0.22 }
+      ]
+    },
+    "surprised": {
+      "smoothing": 0.35,
+      "base": {
+        "ParamAngleY": 9,
+        "ParamBodyAngleX": 6,
+        "ParamBrowLY": 0.5,
+        "ParamBrowRY": 0.5,
+        "ParamEyeLOpen": 1.1,
+        "ParamEyeROpen": 1.1
+      },
+      "oscillators": [{ "paramId": "ParamAngleX", "amplitude": 3, "speedHz": 0.4 }]
+    },
+    "confused": {
+      "smoothing": 0.3,
+      "base": {
+        "ParamAngleY": -6,
+        "ParamBodyAngleX": -4,
+        "ParamMouthForm": -0.5
+      },
+      "oscillators": [
+        { "paramId": "ParamAngleX", "amplitude": 5, "speedHz": 0.16, "phase": 3.1416 },
+        { "paramId": "ParamAngleY", "amplitude": 2, "speedHz": 0.2 }
+      ]
+    }
+  }
+}

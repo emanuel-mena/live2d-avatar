@@ -1,4 +1,4 @@
-import { Live2DAvatarElement } from "./element";
+﻿import { Live2DAvatarElement } from "./element";
 
 const TAG = "live2d-avatar";
 
@@ -6,75 +6,108 @@ if (!customElements.get(TAG)) {
   customElements.define(TAG, Live2DAvatarElement);
 }
 
-const avatar = document.getElementById("avatar") as HTMLElement;
-const audio = document.getElementById("audio") as HTMLAudioElement;
+const avatar = (document.getElementById("avatar") ?? document.querySelector(TAG)) as HTMLElement | null;
+const audio = document.getElementById("audio") as HTMLAudioElement | null;
 
-const playBtn = document.getElementById("play") as HTMLButtonElement;
-const stopBtn = document.getElementById("stop") as HTMLButtonElement;
+const playBtn = document.getElementById("play") as HTMLButtonElement | null;
+const stopBtn = document.getElementById("stop") as HTMLButtonElement | null;
 
-const idleBtn = document.getElementById("idle") as HTMLButtonElement;
-const speakingBtn = document.getElementById("speaking") as HTMLButtonElement;
-const surprisedBtn = document.getElementById("surprised") as HTMLButtonElement;
+const idleBtn = document.getElementById("idle") as HTMLButtonElement | null;
+const speakingBtn = document.getElementById("speaking") as HTMLButtonElement | null;
+const surprisedBtn = document.getElementById("surprised") as HTMLButtonElement | null;
 
-const fileInput = document.getElementById("file") as HTMLInputElement;
+const fileInput = document.getElementById("file") as HTMLInputElement | null;
 
-const gainEl = document.getElementById("gain") as HTMLInputElement;
-const smoothEl = document.getElementById("smooth") as HTMLInputElement;
+const gainEl = document.getElementById("gain") as HTMLInputElement | null;
+const smoothEl = document.getElementById("smooth") as HTMLInputElement | null;
+
+if (
+  !avatar ||
+  !audio ||
+  !playBtn ||
+  !stopBtn ||
+  !idleBtn ||
+  !speakingBtn ||
+  !surprisedBtn ||
+  !fileInput ||
+  !gainEl ||
+  !smoothEl
+) {
+  throw new Error("Demo controls are missing in the page.");
+}
+
+const avatarEl = avatar;
+const audioEl = audio;
+const playButton = playBtn;
+const stopButton = stopBtn;
+const idleButton = idleBtn;
+const speakingButton = speakingBtn;
+const surprisedButton = surprisedBtn;
+const fileInputEl = fileInput;
+const gainInput = gainEl;
+const smoothInput = smoothEl;
+
+// Testing mode: disable model/custom animations and keep only event-driven lipsync.
+avatarEl.setAttribute("animation-mode", "off");
+avatarEl.setAttribute("mouth-param-id", "PARAM_MOUTH_OPEN_Y");
+
+avatarEl.addEventListener("error", (ev: Event) => {
+  const detail = (ev as CustomEvent<{ message?: string; error?: unknown }>).detail;
+  console.error("[avatar:error]", detail?.message, detail?.error);
+});
 
 function lipsyncStart() {
-  const gain = Number(gainEl.value);
-  const smoothing = Number(smoothEl.value);
+  const gain = Number(gainInput.value);
+  const smoothing = Number(smoothInput.value);
 
-  avatar.dispatchEvent(
+  avatarEl.dispatchEvent(
     new CustomEvent("avatar-audio", {
       detail: {
-        media: audio,
+        media: audioEl,
+        paramId: "PARAM_MOUTH_OPEN_Y",
         gain,
         smoothing,
         mode: "rms",
-        floor: 0.02,
-        ceiling: 1.0,
+        floor: 0.005,
+        ceiling: 0.25,
       },
     })
   );
 }
 
 function lipsyncStop() {
-  avatar.dispatchEvent(new CustomEvent("avatar-audio-stop"));
+  avatarEl.dispatchEvent(new CustomEvent("avatar-audio-stop"));
 }
 
-playBtn.addEventListener("click", async () => {
-  // Autoplay policy: must be after user gesture
-  await audio.play();
+playButton.addEventListener("click", async () => {
+  // Autoplay policy: must be after user gesture.
+  await audioEl.play();
 
-  // Arranca lipsync con el audio actual
   lipsyncStart();
-
-  // opcional: poné estado speaking automáticamente
-  avatar.setAttribute("state", "speaking");
+  avatarEl.setAttribute("state", "speaking");
 });
 
-stopBtn.addEventListener("click", () => {
-  audio.pause();
+stopButton.addEventListener("click", () => {
+  audioEl.pause();
   lipsyncStop();
-  avatar.setAttribute("state", "idle");
+  avatarEl.setAttribute("state", "idle");
 });
 
-idleBtn.addEventListener("click", () => avatar.setAttribute("state", "idle"));
-speakingBtn.addEventListener("click", () => avatar.setAttribute("state", "speaking"));
-surprisedBtn.addEventListener("click", () => avatar.setAttribute("state", "surprised"));
+idleButton.addEventListener("click", () => avatarEl.setAttribute("state", "idle"));
+speakingButton.addEventListener("click", () => avatarEl.setAttribute("state", "speaking"));
+surprisedButton.addEventListener("click", () => avatarEl.setAttribute("state", "surprised"));
 
-// Si el audio termina, detenemos lipsync
-audio.addEventListener("ended", () => {
+audioEl.addEventListener("ended", () => {
   lipsyncStop();
-  avatar.setAttribute("state", "idle");
+  avatarEl.setAttribute("state", "idle");
 });
 
-// Cargar audio local en el <audio>
-fileInput.addEventListener("change", () => {
-  const f = fileInput.files?.[0];
-  if (!f) return;
-  const url = URL.createObjectURL(f);
-  audio.src = url;
-  audio.load();
+fileInputEl.addEventListener("change", () => {
+  const file = fileInputEl.files?.[0];
+  if (!file) return;
+
+  const url = URL.createObjectURL(file);
+  audioEl.src = url;
+  audioEl.load();
 });
+

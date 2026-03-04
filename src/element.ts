@@ -1,42 +1,42 @@
-import { DEFAULT_MANIFEST, loadManifest } from "./core/manifest";
+﻿import { DEFAULT_MANIFEST, loadManifest } from "./core/manifest";
 import { AvatarStateMachine } from "./core/stateMachine";
 import type { SMEvent } from "./core/stateMachine";
 import { Live2DAdapter } from "./core/live2dAdapter";
-import type { FitMode } from "./core/live2dAdapter";
 import { MotionRouter } from "./core/motionRouter";
-import { LipSyncEngine } from "./core/lipSync";
+import { loadAnimationManifest } from "./core/customAnimation";
+import { OBSERVED_ATTRIBUTES } from "./element/constants";
+import {
+  readAnimationMode,
+  readMouthParameterId,
+  readTransformFromAttrs,
+  type AnimationMode,
+} from "./element/attributes";
+import { renderAvatarCanvas } from "./element/view";
+import { AvatarLipSyncController, type AvatarAudioEventDetail } from "./element/lipSyncController";
+import { AvatarCustomAnimationController } from "./element/customAnimationController";
+
+const TRANSFORM_ATTRIBUTES = new Set(["scale", "x", "y", "rotation", "anchor-x", "anchor-y", "fit"]);
 
 export class Live2DAvatarElement extends HTMLElement {
-  static observedAttributes = [
-    "model-src",
-    "motions-src",
-    "state",
-    "animations", // ✅ nuevo
-    "scale",
-    "x",
-    "y",
-    "rotation",
-    "anchor-x",
-    "anchor-y",
-    "fit",
-  ];
+  static observedAttributes = OBSERVED_ATTRIBUTES;
 
-  private shadowRootRef: ShadowRoot;
+  private readonly shadowRootRef: ShadowRoot;
   private canvas!: HTMLCanvasElement;
 
-  private sm: AvatarStateMachine;
-  private live2d: Live2DAdapter;
-  private motionRouter: MotionRouter;
+  private readonly sm: AvatarStateMachine;
+  private readonly live2d: Live2DAdapter;
+  private readonly motionRouter: MotionRouter;
+
+  private readonly customAnimation: AvatarCustomAnimationController;
+  private readonly lipSync: AvatarLipSyncController;
 
   private isBootstrapped = false;
   private pendingState: string | null = null;
-
   private rendererReady: Promise<void> | null = null;
 
-  // Lipsync (aunque esté implementado, lo apagamos si animations=off)
-  private lipSync = new LipSyncEngine();
-  private lipSyncParamId = "PARAM_MOUTH_OPEN_Y";
-  private lipSyncRaf = 0;
+  private animationMode: AnimationMode = "custom";
+  private mouthParamId = "ParamMouthOpenY";
+  private lipSyncValue = 0;
 
   constructor() {
     super();
@@ -45,27 +45,49 @@ export class Live2DAvatarElement extends HTMLElement {
     this.sm = new AvatarStateMachine((ev) => this.onSMEvent(ev));
     this.live2d = new Live2DAdapter();
     this.motionRouter = new MotionRouter(DEFAULT_MANIFEST);
+
+    this.customAnimation = new AvatarCustomAnimationController({
+      onFrame: (values) => this.live2d.setParameters(values),
+    });
+
+    this.lipSync = new AvatarLipSyncController({
+      onValue: (value) => {
+        this.lipSyncValue = value;
+        this.live2d.setLipSync(this.mouthParamId, value);
+      },
+      onError: (message, error) => this.dispatchError(message, error),
+    });
   }
 
   connectedCallback() {
-    this.render();
+    this.canvas = renderAvatarCanvas(this.shadowRootRef);
 
-    // listeners lipsync por eventos
+    this.animationMode = readAnimationMode(this);
+    this.mouthParamId = readMouthParameterId(this);
+    this.live2d.setLipSync(this.mouthParamId, this.lipSyncValue);
+    this.live2d.setBuiltInAnimationEnabled(this.animationMode === "model");
+    this.customAnimation.setMode(this.animationMode);
+    this.customAnimation.ensureRunning();
+
     this.addEventListener("avatar-audio", this.onAvatarAudio as EventListener);
     this.addEventListener("avatar-audio-stop", this.onAvatarAudioStop as EventListener);
 
-    this.rendererReady = this.initRenderer().catch((e) => {
-      this.dispatchError("Renderer init failed", e);
-    }) as any;
+    this.rendererReady = this.initRenderer().catch((error) => {
+      this.dispatchError("Renderer init failed", error);
+    }) as Promise<void>;
 
-    this.bootstrap().catch((e) => this.dispatchError("Bootstrap failed", e));
+    this.bootstrap().catch((error) => this.dispatchError("Bootstrap failed", error));
+    this.bootstrapAnimationManifest().catch((error) =>
+      this.dispatchError("Failed to load animation manifest", error)
+    );
   }
 
   disconnectedCallback() {
     this.removeEventListener("avatar-audio", this.onAvatarAudio as EventListener);
     this.removeEventListener("avatar-audio-stop", this.onAvatarAudioStop as EventListener);
 
-    this.stopLipSync();
+    this.lipSync.destroy();
+    this.customAnimation.destroy();
 
     this.live2d.destroy();
     this.sm.dispose();
@@ -75,13 +97,27 @@ export class Live2DAvatarElement extends HTMLElement {
     if (oldVal === newVal) return;
 
     if (name === "motions-src") {
-      this.bootstrap().catch((e) => this.dispatchError("Failed to load motions manifest", e));
+      this.bootstrap().catch((error) => this.dispatchError("Failed to load motions manifest", error));
       return;
     }
 
-    if (name === "animations") {
-      // Si se apagan, detenemos lipsync inmediatamente
-      if (!this.animationsEnabled()) this.stopLipSync();
+    if (name === "animations-src") {
+      this.bootstrapAnimationManifest().catch((error) =>
+        this.dispatchError("Failed to load animation manifest", error)
+      );
+      return;
+    }
+
+    if (name === "animation-mode" || name === "animations") {
+      this.animationMode = readAnimationMode(this);
+      this.live2d.setBuiltInAnimationEnabled(this.animationMode === "model");
+      this.customAnimation.setMode(this.animationMode);
+      return;
+    }
+
+    if (name === "mouth-param-id") {
+      this.mouthParamId = readMouthParameterId(this);
+      this.live2d.setLipSync(this.mouthParamId, this.lipSyncValue);
       return;
     }
 
@@ -90,6 +126,7 @@ export class Live2DAvatarElement extends HTMLElement {
         this.pendingState = newVal;
         return;
       }
+
       this.sm.setState(newVal, "attribute");
       return;
     }
@@ -101,29 +138,13 @@ export class Live2DAvatarElement extends HTMLElement {
           this.dispatchEvent(new CustomEvent("model-loaded", { detail: { modelSrc: newVal } }));
           this.applyTransformFromAttrs();
         })
-        .catch((e) => this.dispatchError("Failed to load model", e));
+        .catch((error) => this.dispatchError("Failed to load model", error));
       return;
     }
 
-    if (
-      name === "scale" ||
-      name === "x" ||
-      name === "y" ||
-      name === "rotation" ||
-      name === "anchor-x" ||
-      name === "anchor-y" ||
-      name === "fit"
-    ) {
+    if (TRANSFORM_ATTRIBUTES.has(name)) {
       this.applyTransformFromAttrs();
-      return;
     }
-  }
-
-  private animationsEnabled(): boolean {
-    const v = (this.getAttribute("animations") ?? "on").toLowerCase().trim();
-    // soporta: off / false / 0
-    if (v === "off" || v === "false" || v === "0") return false;
-    return true;
   }
 
   private async initRenderer() {
@@ -159,39 +180,20 @@ export class Live2DAvatarElement extends HTMLElement {
     this.sm.setState(initial, "api");
   }
 
+  private async bootstrapAnimationManifest() {
+    const animationsSrc = this.getAttribute("animations-src");
+
+    if (!animationsSrc) {
+      this.customAnimation.resetManifest();
+      return;
+    }
+
+    const manifest = await loadAnimationManifest(animationsSrc);
+    this.customAnimation.setManifest(manifest);
+  }
+
   private applyTransformFromAttrs() {
-    const scale = this.getNumberAttr("scale", 1);
-    const x = this.getNumberAttr("x", 0);
-    const y = this.getNumberAttr("y", 0);
-    const rotationDeg = this.getNumberAttr("rotation", 0);
-    const anchorX = this.clamp01(this.getNumberAttr("anchor-x", 0.5));
-    const anchorY = this.clamp01(this.getNumberAttr("anchor-y", 0.5));
-
-    const fitAttr = (this.getAttribute("fit") ?? "contain").toLowerCase();
-    const fit: FitMode = fitAttr === "cover" ? "cover" : fitAttr === "none" ? "none" : "contain";
-
-    this.live2d.setTransform({
-      scale,
-      offsetX: x,
-      offsetY: y,
-      rotationDeg,
-      anchorX,
-      anchorY,
-      fit,
-    });
-  }
-
-  private getNumberAttr(name: string, fallback: number) {
-    const raw = this.getAttribute(name);
-    if (raw == null || raw.trim() === "") return fallback;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : fallback;
-  }
-
-  private clamp01(v: number) {
-    if (v < 0) return 0;
-    if (v > 1) return 1;
-    return v;
+    this.live2d.setTransform(readTransformFromAttrs(this));
   }
 
   private onSMEvent(ev: SMEvent) {
@@ -206,13 +208,16 @@ export class Live2DAvatarElement extends HTMLElement {
 
       case "state-change":
         this.dispatchEvent(new CustomEvent("state-change", { detail: ev }));
+        this.customAnimation.setState(ev.to);
         break;
 
-      case "motion-start":
+      case "motion-start": {
         this.dispatchEvent(new CustomEvent("motion-start", { detail: ev }));
+        this.customAnimation.setState(ev.state);
 
-        // ✅ Si animations está OFF: NO reproducir motions
-        if (!this.animationsEnabled()) break;
+        if (this.animationMode !== "model") {
+          break;
+        }
 
         try {
           const target = this.motionRouter.resolve(ev.state);
@@ -221,6 +226,7 @@ export class Live2DAvatarElement extends HTMLElement {
           // no-op
         }
         break;
+      }
 
       case "motion-end":
         this.dispatchEvent(new CustomEvent("motion-end", { detail: ev }));
@@ -236,67 +242,24 @@ export class Live2DAvatarElement extends HTMLElement {
     }
   }
 
-  // --- Lipsync events (disabled when animations=off) ---
-
   private onAvatarAudio = (e: Event) => {
-    if (!this.animationsEnabled()) return;
-
-    const ev = e as CustomEvent<any>;
+    const ev = e as CustomEvent<AvatarAudioEventDetail>;
     const detail = ev.detail ?? {};
 
-    try {
-      this.lipSync.start(
-        { media: detail.media, node: detail.node, stream: detail.stream, audioContext: detail.audioContext },
-        {
-          gain: detail.gain,
-          smoothing: detail.smoothing,
-          mode: detail.mode,
-          floor: detail.floor,
-          ceiling: detail.ceiling,
-        }
-      );
-      this.startLipSyncLoop();
-    } catch (err) {
-      this.dispatchError("Failed to start lipsync", err);
+    if (typeof detail.paramId === "string" && detail.paramId.trim()) {
+      this.mouthParamId = detail.paramId.trim();
+      this.live2d.setLipSync(this.mouthParamId, this.lipSyncValue);
     }
+
+    this.lipSync.start(detail);
   };
 
   private onAvatarAudioStop = () => {
-    this.stopLipSync();
-  };
-
-  private startLipSyncLoop() {
-    cancelAnimationFrame(this.lipSyncRaf);
-
-    const tick = () => {
-      this.lipSyncRaf = requestAnimationFrame(tick);
-      const v = this.lipSync.getValue();
-      this.live2d.setParameter(this.lipSyncParamId, v);
-    };
-
-    tick();
-  }
-
-  private stopLipSync() {
-    cancelAnimationFrame(this.lipSyncRaf);
-    this.lipSyncRaf = 0;
     this.lipSync.stop();
-    this.live2d.setParameter(this.lipSyncParamId, 0);
-  }
+  };
 
   private dispatchError(message: string, error?: unknown) {
     this.dispatchEvent(new CustomEvent("error", { detail: { message, error } }));
     console.error(`[live2d-avatar] ${message}`, error);
-  }
-
-  private render() {
-    this.shadowRootRef.innerHTML = `
-      <style>
-        :host{ display:inline-block; width:320px; height:420px; }
-        canvas{ width:100%; height:100%; display:block; background:#111; }
-      </style>
-      <canvas></canvas>
-    `;
-    this.canvas = this.shadowRootRef.querySelector("canvas")!;
   }
 }

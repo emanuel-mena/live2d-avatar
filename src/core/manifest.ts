@@ -1,18 +1,18 @@
 export type AvatarState = string;
 
 export interface MotionRef {
-  id?: string;     // opcional (compat)
-  group?: string;  // nuevo
-  index?: number;  // nuevo
+  id?: string;
+  group?: string;
+  index?: number;
 }
 
 export interface StateConfig {
-  motions: (string | MotionRef)[];
+  motions?: (string | MotionRef)[];
   blendMs?: number;
   loop?: boolean;
   priority?: number;
   cooldownMs?: number;
-  demoDurationMs?: number; // por ahora; luego se reemplaza por duración real
+  demoDurationMs?: number;
 }
 
 export interface Rule {
@@ -42,12 +42,12 @@ export const DEFAULT_MANIFEST: MotionsManifest = {
     listening: { motions: ["Listen_01"], loop: true, blendMs: 180, demoDurationMs: 700 },
     speaking: { motions: ["Talk_01", "Talk_02"], loop: true, blendMs: 120, demoDurationMs: 600 },
     surprised: { motions: ["Surprise"], blendMs: 80, priority: 10, cooldownMs: 2000, demoDurationMs: 900 },
-    confused: { motions: ["Confused_01"], blendMs: 140, priority: 5, cooldownMs: 1200, demoDurationMs: 1000 }
+    confused: { motions: ["Confused_01"], blendMs: 140, priority: 5, cooldownMs: 1200, demoDurationMs: 1000 },
   },
   rules: [
     { from: "*", to: "surprised", cooldownMs: 2000 },
-    { from: "speaking", to: "listening", blendMs: 160 }
-  ]
+    { from: "speaking", to: "listening", blendMs: 160 },
+  ],
 };
 
 export function normalizeMotion(m: string | MotionRef): MotionRef {
@@ -68,9 +68,14 @@ export function validateManifest(raw: unknown): MotionsManifest {
   }
 
   for (const [stateName, cfg] of Object.entries(obj.states)) {
-    if (!cfg || typeof cfg !== "object") throw new Error(`State "${stateName}" must be an object.`);
-    if (!Array.isArray((cfg as any).motions) || (cfg as any).motions.length === 0) {
-      throw new Error(`State "${stateName}" must have a non-empty motions array.`);
+    if (!cfg || typeof cfg !== "object") {
+      throw new Error(`State "${stateName}" must be an object.`);
+    }
+
+    if ((cfg as any).motions !== undefined) {
+      if (!Array.isArray((cfg as any).motions)) {
+        throw new Error(`State "${stateName}".motions must be an array when provided.`);
+      }
     }
   }
 

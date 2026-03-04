@@ -1,9 +1,9 @@
-export interface LipSyncOptions {
-  gain?: number;         // amplifica apertura
-  smoothing?: number;    // 0..1, más alto = más suave
-  fftSize?: number;      // potencia de 2, ej 1024
-  floor?: number;        // umbral mínimo (ruido)
-  ceiling?: number;      // clamp máximo
+﻿export interface LipSyncOptions {
+  gain?: number;
+  smoothing?: number;
+  fftSize?: number;
+  floor?: number;
+  ceiling?: number;
   mode?: "rms" | "peak";
 }
 
@@ -11,28 +11,32 @@ export interface LipSyncInput {
   media?: HTMLMediaElement;
   node?: AudioNode;
   stream?: MediaStream;
-  audioContext?: AudioContext; // opcional si ya existe
+  audioContext?: AudioContext;
+}
+
+interface MediaSourceBinding {
+  ctx: AudioContext;
+  node: MediaElementAudioSourceNode;
 }
 
 export class LipSyncEngine {
   private ctx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
-  private source:
-    | MediaElementAudioSourceNode
-    | MediaStreamAudioSourceNode
-    | null = null;
+  private source: AudioNode | null = null;
 
-  private data: Uint8Array | null = null;
+  private mediaSources = new WeakMap<HTMLMediaElement, MediaSourceBinding>();
+
+  private data: Uint8Array<ArrayBuffer> | null = null;
   private raf = 0;
 
   private value = 0;
 
   private opts: Required<LipSyncOptions> = {
-    gain: 1.0,
+    gain: 1,
     smoothing: 0.8,
     fftSize: 1024,
-    floor: 0.02,
-    ceiling: 1.0,
+    floor: 0.005,
+    ceiling: 0.25,
     mode: "rms",
   };
 
@@ -41,34 +45,32 @@ export class LipSyncEngine {
 
     this.opts = { ...this.opts, ...(opts ?? {}) };
 
-    const ctx = input.audioContext ?? new AudioContext();
+    const ctx = this.resolveContext(input);
     this.ctx = ctx;
 
     const analyser = ctx.createAnalyser();
     analyser.fftSize = this.opts.fftSize;
+    analyser.smoothingTimeConstant = Math.max(0, Math.min(0.95, this.opts.smoothing));
     this.analyser = analyser;
 
-    // Conectar fuente
     if (input.node) {
       input.node.connect(analyser);
-      // no conectamos a destination: el audio ya se reproduce por donde toque
-      this.source = null;
+      this.source = input.node;
     } else if (input.media) {
-      this.source = ctx.createMediaElementSource(input.media);
-      this.source.connect(analyser);
-      // importante: para que el audio siga sonando, connect a destination
+      const sourceNode = this.resolveMediaSourceNode(input.media, ctx);
+      sourceNode.connect(analyser);
       analyser.connect(ctx.destination);
+      this.source = sourceNode;
     } else if (input.stream) {
-      this.source = ctx.createMediaStreamSource(input.stream);
-      this.source.connect(analyser);
-      // stream no necesariamente va a destination
+      const sourceNode = ctx.createMediaStreamSource(input.stream);
+      sourceNode.connect(analyser);
+      this.source = sourceNode;
     } else {
       throw new Error("LipSyncEngine.start: provide media, node, or stream.");
     }
 
-    this.data = new Uint8Array(analyser.frequencyBinCount);
+    this.data = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
 
-    // Autoplay policy: si está suspendido, intentamos resume (debe ser tras gesto del usuario)
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
     }
@@ -82,25 +84,51 @@ export class LipSyncEngine {
 
     try {
       this.source?.disconnect();
-    } catch {}
+    } catch {
+      // no-op
+    }
+
     try {
       this.analyser?.disconnect();
-    } catch {}
+    } catch {
+      // no-op
+    }
 
     this.source = null;
     this.analyser = null;
     this.data = null;
 
-    // Si creamos nuestro propio context, podríamos cerrarlo; pero si te pasan uno externo, no.
-    // Para mantenerlo simple: no cerramos automáticamente.
-    this.ctx = null;
-
     this.value = 0;
   }
 
-  /** Valor 0..1 listo para mouth open */
   getValue(): number {
     return this.value;
+  }
+
+  private resolveContext(input: LipSyncInput): AudioContext {
+    if (input.audioContext) return input.audioContext;
+
+    if (input.media) {
+      const bound = this.mediaSources.get(input.media);
+      if (bound) return bound.ctx;
+    }
+
+    if (this.ctx) return this.ctx;
+    return new AudioContext();
+  }
+
+  private resolveMediaSourceNode(media: HTMLMediaElement, ctx: AudioContext): MediaElementAudioSourceNode {
+    const bound = this.mediaSources.get(media);
+    if (bound) {
+      if (bound.ctx !== ctx) {
+        throw new Error("LipSyncEngine: media element is already bound to a different AudioContext.");
+      }
+      return bound.node;
+    }
+
+    const node = ctx.createMediaElementSource(media);
+    this.mediaSources.set(media, { ctx, node });
+    return node;
   }
 
   private loop = () => {
@@ -116,16 +144,14 @@ export class LipSyncEngine {
     let v = 0;
 
     if (this.opts.mode === "peak") {
-      // peak absoluto
       let peak = 0;
       for (let i = 0; i < this.data.length; i++) {
         const x = (this.data[i] - 128) / 128;
-        const ax = Math.abs(x);
-        if (ax > peak) peak = ax;
+        const absX = Math.abs(x);
+        if (absX > peak) peak = absX;
       }
       v = peak;
     } else {
-      // RMS
       let sum = 0;
       for (let i = 0; i < this.data.length; i++) {
         const x = (this.data[i] - 128) / 128;
@@ -134,14 +160,12 @@ export class LipSyncEngine {
       v = Math.sqrt(sum / this.data.length);
     }
 
-    // normalizar + piso + ganancia
-    v = (v - this.opts.floor) / Math.max(1e-6, (this.opts.ceiling - this.opts.floor));
+    v = (v - this.opts.floor) / Math.max(1e-6, this.opts.ceiling - this.opts.floor);
     v = Math.max(0, Math.min(1, v));
     v *= this.opts.gain;
     v = Math.max(0, Math.min(1, v));
 
-    // suavizado (EMA)
-    const a = this.opts.smoothing;
-    this.value = a * this.value + (1 - a) * v;
-  };
+    const smoothing = this.opts.smoothing;
+    this.value = smoothing * this.value + (1 - smoothing) * v;
+  }
 }

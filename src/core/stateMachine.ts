@@ -31,7 +31,6 @@ export class AvatarStateMachine {
 
   private playing: { state: AvatarState; motionId: string; timer?: number } | null = null;
 
-  // ✅ NO parameter properties (compatible con erasableSyntaxOnly)
   constructor(emit: EventSink) {
     this.emit = emit;
   }
@@ -108,12 +107,15 @@ export class AvatarStateMachine {
     const rule = this.matchRule(from, to);
     const blendMs = rule?.blendMs ?? toCfg.blendMs ?? DEFAULTS.blendMs;
 
-    const motions = toCfg.motions.map(normalizeMotion);
-    const pick = motions[Math.floor(Math.random() * motions.length)];
+    const motions = (toCfg.motions ?? []).map(normalizeMotion);
+    const pickedMotion = motions[Math.floor(Math.random() * motions.length)];
+
+    const fallbackMotionId = `${to}:custom`;
+    const motionId = pickedMotion?.id ?? pickedMotion?.group ?? fallbackMotionId;
 
     return {
       state: to,
-      motionId: pick.id,
+      motionId,
       blendMs,
       loop: Boolean(toCfg.loop),
       priority: toCfg.priority ?? DEFAULTS.priority,

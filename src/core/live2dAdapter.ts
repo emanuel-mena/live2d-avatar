@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+﻿import * as PIXI from "pixi.js";
 import { Live2DModel, configureCubism4 } from "pixi-live2d-display-advanced/cubism4";
 
 export type FitMode = "contain" | "cover" | "none";
@@ -21,6 +21,25 @@ let cubismConfigured = false;
 export class Live2DAdapter {
   private app: PIXI.Application | null = null;
   private model: Live2DModel | null = null;
+
+  private builtInAnimationEnabled = false;
+  private lipSyncParamId = "PARAM_MOUTH_OPEN_Y";
+  private lipSyncValue = 0;
+
+  private lipSyncHook:
+    | {
+        internal: any;
+        handler: () => void;
+      }
+    | null = null;
+
+  private freezePatch:
+    | {
+        idleGroup?: string;
+        updateFocus?: (this: unknown, ...args: unknown[]) => unknown;
+        updateNaturalMovements?: (this: unknown, ...args: unknown[]) => unknown;
+      }
+    | null = null;
 
   private resizeObserver: ResizeObserver | null = null;
 
@@ -88,6 +107,7 @@ export class Live2DAdapter {
 
     // Remove old model (swap safely)
     if (this.model) {
+      this.detachLipSyncHook();
       this.app!.stage.removeChild(this.model);
       (this.model as any).destroy?.(true);
       this.model = null;
@@ -98,11 +118,25 @@ export class Live2DAdapter {
     this.model = model;
 
     this.app!.stage.addChild(model);
+    this.attachLipSyncHook();
 
     // Measure for precise fit
     this.naturalSize = this.measureNaturalSize(model);
+    this.applyBuiltInAnimationMode();
+    this.applyLipSyncValue();
 
     this.layout();
+  }
+
+  setBuiltInAnimationEnabled(enabled: boolean) {
+    this.builtInAnimationEnabled = enabled;
+    this.applyBuiltInAnimationMode();
+  }
+
+  setLipSync(paramId: string, value: number) {
+    this.lipSyncParamId = paramId.trim() || "PARAM_MOUTH_OPEN_Y";
+    this.lipSyncValue = value;
+    this.applyLipSyncValue();
   }
 
   setTransform(partial: Partial<ModelTransform>) {
@@ -111,10 +145,18 @@ export class Live2DAdapter {
   }
 
   setParameter(id: string, value: number) {
+    this.writeParameter(id, value);
+
+    // Compatibility alias for mouth-open id across model conventions.
+    if (id === "PARAM_MOUTH_OPEN_Y") this.writeParameter("ParamMouthOpenY", value);
+    if (id === "ParamMouthOpenY") this.writeParameter("PARAM_MOUTH_OPEN_Y", value);
+  }
+
+  private writeParameter(id: string, value: number) {
     const m = this.model as any;
     if (!m) return;
 
-    // pixi-live2d-display-advanced suele exponer internalModel/coreModel
+    // pixi-live2d-display-advanced usually exposes internalModel/coreModel.
     const internal = m.internalModel ?? m._internalModel;
     const core = internal?.coreModel;
 
@@ -123,9 +165,15 @@ export class Live2DAdapter {
       return;
     }
 
-    // fallback: algunas builds exponen setParameterValueById directo
+    // fallback: some builds expose setParameterValueById directly
     if (typeof m.setParameterValueById === "function") {
       m.setParameterValueById(id, value);
+    }
+  }
+
+  setParameters(values: Record<string, number>) {
+    for (const [id, value] of Object.entries(values)) {
+      this.setParameter(id, value);
     }
   }
 
@@ -151,11 +199,114 @@ export class Live2DAdapter {
   }
 
   playMotion(group: string, index: number, _fadeMs: number) {
+    if (!this.builtInAnimationEnabled) return;
+
     const m = this.model as any;
     if (!m) return;
     if (typeof m.motion === "function") {
       m.motion(group, index);
     }
+  }
+
+  private applyBuiltInAnimationMode() {
+    const modelAny = this.model as any;
+    if (!modelAny) return;
+
+    const internal = modelAny.internalModel ?? modelAny._internalModel;
+    if (!internal) return;
+
+    if (this.builtInAnimationEnabled) {
+      this.unfreezeInternalAnimation(internal);
+      return;
+    }
+
+    this.freezeInternalAnimation(modelAny, internal);
+  }
+
+  private attachLipSyncHook() {
+    this.detachLipSyncHook();
+
+    const modelAny = this.model as any;
+    if (!modelAny) return;
+
+    const internal = modelAny.internalModel ?? modelAny._internalModel;
+    if (!internal || typeof internal.on !== "function") return;
+
+    const handler = () => this.applyLipSyncValue();
+    internal.on("afterMotionUpdate", handler);
+    internal.on("beforeModelUpdate", handler);
+
+    this.lipSyncHook = { internal, handler };
+  }
+
+  private detachLipSyncHook() {
+    if (!this.lipSyncHook) return;
+
+    const { internal, handler } = this.lipSyncHook;
+
+    if (typeof internal.off === "function") {
+      internal.off("afterMotionUpdate", handler);
+      internal.off("beforeModelUpdate", handler);
+    } else if (typeof internal.removeListener === "function") {
+      internal.removeListener("afterMotionUpdate", handler);
+      internal.removeListener("beforeModelUpdate", handler);
+    }
+
+    this.lipSyncHook = null;
+  }
+
+  private applyLipSyncValue() {
+    if (!this.model) return;
+
+    const value = Math.max(0, Math.min(1, this.lipSyncValue));
+    this.setParameter(this.lipSyncParamId, value);
+  }
+
+  private freezeInternalAnimation(modelAny: any, internal: any) {
+    if (!this.freezePatch) {
+      this.freezePatch = {
+        idleGroup: internal.motionManager?.groups?.idle,
+        updateFocus: typeof internal.updateFocus === "function" ? internal.updateFocus : undefined,
+        updateNaturalMovements:
+          typeof internal.updateNaturalMovements === "function" ? internal.updateNaturalMovements : undefined,
+      };
+    }
+
+    if (typeof modelAny.stopMotions === "function") {
+      modelAny.stopMotions();
+    }
+    internal.motionManager?.stopAllMotions?.();
+    for (const parallelManager of internal.parallelMotionManager ?? []) {
+      parallelManager?.stopAllMotions?.();
+    }
+
+    if (internal.motionManager?.groups) {
+      internal.motionManager.groups.idle = "__disabled_idle__";
+    }
+
+    if (typeof internal.updateFocus === "function") {
+      internal.updateFocus = () => {};
+    }
+    if (typeof internal.updateNaturalMovements === "function") {
+      internal.updateNaturalMovements = () => {};
+    }
+  }
+
+  private unfreezeInternalAnimation(internal: any) {
+    if (!this.freezePatch) return;
+
+    if (internal.motionManager?.groups && this.freezePatch.idleGroup !== undefined) {
+      internal.motionManager.groups.idle = this.freezePatch.idleGroup;
+    }
+
+    if (this.freezePatch.updateFocus) {
+      internal.updateFocus = this.freezePatch.updateFocus;
+    }
+    if (this.freezePatch.updateNaturalMovements) {
+      internal.updateNaturalMovements = this.freezePatch.updateNaturalMovements;
+    }
+
+    this.freezePatch = null;
   }
 
   private layout() {
@@ -213,6 +364,8 @@ export class Live2DAdapter {
   }
 
   destroy() {
+    this.detachLipSyncHook();
+
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
 
@@ -224,5 +377,6 @@ export class Live2DAdapter {
     this.model = null;
     this.naturalSize = null;
     this.initPromise = null;
+    this.freezePatch = null;
   }
 }

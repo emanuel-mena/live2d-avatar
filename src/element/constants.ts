@@ -1,0 +1,16 @@
+export const OBSERVED_ATTRIBUTES = [
+  "model-src",
+  "motions-src",
+  "animations-src",
+  "state",
+  "animations",
+  "animation-mode",
+  "mouth-param-id",
+  "scale",
+  "x",
+  "y",
+  "rotation",
+  "anchor-x",
+  "anchor-y",
+  "fit",
+] as const;

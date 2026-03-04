@@ -4,8 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>live2d-avatar lipsync demo</title>
-
-    <!-- Cubism Core MUST load before your module -->
     <script src="/live2d/live2dcubismcore.min.js"></script>
   </head>
 
@@ -13,9 +11,9 @@
     <div style="display:flex; gap:24px; padding:24px; align-items:flex-start; flex-wrap:wrap;">
       <div>
         <live2d-avatar
+          id="avatar"
           model-src="/models/miku/runtime/miku.model3.json"
-          motions-src="/miku.motions.json"
-          animations="off"
+          animation-mode="off"
           state="idle"
           style="width:360px;height:520px;"
         ></live2d-avatar>
@@ -29,7 +27,7 @@
         <h2 style="margin:0 0 12px;">Lipsync demo</h2>
 
         <audio id="audio" controls preload="auto" style="width:100%;">
-          <source src="/audio/test1.wav" type="audio/mpeg" />
+          <source src="/audio/test2.wav" type="audio/mpeg" />
         </audio>
 
         <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
@@ -43,9 +41,6 @@
         <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
           <div style="font-weight:600; margin-bottom:8px;">Cargar audio local</div>
           <input id="file" type="file" accept="audio/*" />
-          <div style="opacity:.75; font-size:12px; margin-top:8px;">
-            Esto no sube nada a internet, solo lo carga en tu navegador.
-          </div>
         </div>
 
         <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
