@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>live2d-avatar lipsync demo</title>
+
+    <!-- Cubism Core MUST load before your module -->
+    <script src="/live2d/live2dcubismcore.min.js"></script>
+  </head>
+
+  <body style="margin:0; font-family:system-ui; background:#0b1020; color:white;">
+    <div style="display:flex; gap:24px; padding:24px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <live2d-avatar
+          model-src="/models/miku/runtime/miku.model3.json"
+          motions-src="/miku.motions.json"
+          animations="off"
+          state="idle"
+          style="width:360px;height:520px;"
+        ></live2d-avatar>
+
+        <div style="margin-top:10px; opacity:.8; font-size:13px;">
+          Tip: probá <code>state="speaking"</code> mientras suena el audio.
+        </div>
+      </div>
+
+      <div style="min-width:320px; max-width:520px;">
+        <h2 style="margin:0 0 12px;">Lipsync demo</h2>
+
+        <audio id="audio" controls preload="auto" style="width:100%;">
+          <source src="/audio/test1.wav" type="audio/mpeg" />
+        </audio>
+
+        <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+          <button id="play" style="padding:10px 12px;">Play + Lipsync</button>
+          <button id="stop" style="padding:10px 12px;">Stop Lipsync</button>
+          <button id="idle" style="padding:10px 12px;">State: idle</button>
+          <button id="speaking" style="padding:10px 12px;">State: speaking</button>
+          <button id="surprised" style="padding:10px 12px;">State: surprised</button>
+        </div>
+
+        <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
+          <div style="font-weight:600; margin-bottom:8px;">Cargar audio local</div>
+          <input id="file" type="file" accept="audio/*" />
+          <div style="opacity:.75; font-size:12px; margin-top:8px;">
+            Esto no sube nada a internet, solo lo carga en tu navegador.
+          </div>
+        </div>
+
+        <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
+          <div style="font-weight:600; margin-bottom:8px;">Parámetros lipsync</div>
+          <label style="display:block; margin:8px 0;">
+            Gain:
+            <input id="gain" type="range" min="0" max="3" step="0.05" value="1.4" style="width:100%;" />
+          </label>
+          <label style="display:block; margin:8px 0;">
+            Smoothing:
+            <input id="smooth" type="range" min="0" max="0.98" step="0.01" value="0.85" style="width:100%;" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

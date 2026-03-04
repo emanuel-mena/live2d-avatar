@@ -1,0 +1,45 @@
+{
+  "version": "0.2",
+  "states": {
+    "idle": {
+      "motions": [{ "group": "Idle", "index": 0 }],
+      "blendMs": 300,
+      "loop": true
+    },
+    "listening": {
+      "motions": [{ "group": "Idle", "index": 0 }],
+      "blendMs": 250,
+      "loop": true
+    },
+    "speaking": {
+      "motions": [
+        { "group": "Tap", "index": 0 },
+        { "group": "Tap", "index": 1 },
+        { "group": "Tap", "index": 2 }
+      ],
+      "blendMs": 150,
+      "loop": true
+    },
+    "confused": {
+      "motions": [
+        { "group": "Flick", "index": 0 },
+        { "group": "Flick", "index": 1 },
+        { "group": "Flick", "index": 2 }
+      ],
+      "blendMs": 180,
+      "loop": false,
+      "cooldownMs": 1200,
+      "priority": 5
+    },
+    "surprised": {
+      "motions": [{ "group": "Flick3", "index": 0 }],
+      "blendMs": 120,
+      "loop": false,
+      "cooldownMs": 2000,
+      "priority": 10
+    }
+  },
+  "rules": [
+    { "from": "*", "to": "surprised", "cooldownMs": 2000 }
+  ]
+}
