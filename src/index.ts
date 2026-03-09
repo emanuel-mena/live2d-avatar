@@ -47,8 +47,7 @@ const fileInputEl = fileInput;
 const gainInput = gainEl;
 const smoothInput = smoothEl;
 
-// Testing mode: disable model/custom animations and keep only event-driven lipsync.
-avatarEl.setAttribute("animation-mode", "off");
+// Keep lipsync target explicit for this model.
 avatarEl.setAttribute("mouth-param-id", "PARAM_MOUTH_OPEN_Y");
 
 avatarEl.addEventListener("error", (ev: Event) => {

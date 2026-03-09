@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   build: {
     lib: {
-      entry: "src/index.ts",
+      entry: "src/lib.ts",
       name: "Live2DAvatar",
       formats: ["iife"],
       fileName: () => "live2d-avatar.min.js",

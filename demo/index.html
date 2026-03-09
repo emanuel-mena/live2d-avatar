@@ -1,10 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>live2d-avatar lipsync demo</title>
+    <title>live2d-avatar demo (library build)</title>
+
+    <!-- Cubism Core MUST load before the generated library -->
     <script src="/live2d/live2dcubismcore.min.js"></script>
+    <script src="/dist/live2d-avatar.min.js"></script>
   </head>
 
   <body style="margin:0; font-family:system-ui; background:#0b1020; color:white;">
@@ -16,17 +19,18 @@
           motions-src="/miku.motions.json"
           animations-src="/custom.animations.json"
           animation-mode="custom"
+          mouth-param-id="PARAM_MOUTH_OPEN_Y"
           state="idle"
           style="width:360px;height:520px;"
         ></live2d-avatar>
 
         <div style="margin-top:10px; opacity:.8; font-size:13px;">
-          Tip: probá <code>state="speaking"</code> mientras suena el audio.
+          Este demo usa solamente el bundle generado en <code>/dist/live2d-avatar.min.js</code>.
         </div>
       </div>
 
       <div style="min-width:320px; max-width:520px;">
-        <h2 style="margin:0 0 12px;">Lipsync demo</h2>
+        <h2 style="margin:0 0 12px;">Library demo</h2>
 
         <audio id="audio" controls preload="auto" style="width:100%;">
           <source src="/audio/test2.wav" type="audio/mpeg" />
@@ -59,6 +63,6 @@
       </div>
     </div>
 
-    <script type="module" src="/src/index.ts"></script>
+    <script type="module" src="/demo/main.js"></script>
   </body>
 </html>
