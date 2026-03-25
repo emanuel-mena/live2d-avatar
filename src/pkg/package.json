@@ -1,0 +1,15 @@
+{
+  "name": "inochi-viewer",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "inochi_viewer_bg.wasm",
+    "inochi_viewer.js",
+    "inochi_viewer.d.ts"
+  ],
+  "main": "inochi_viewer.js",
+  "types": "inochi_viewer.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
