@@ -3,12 +3,278 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>live2d-avatar lipsync demo</title>
+    <title>Avatar Viewer Switcher</title>
+
+    <!-- Live2D -->
     <script src="/live2d/live2dcubismcore.min.js"></script>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        background: #0b1020;
+        color: white;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .topbar {
+        display: flex;
+        gap: 10px;
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: #0f172a;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+      }
+
+      .topbar button {
+        padding: 10px 14px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        background: #1f2937;
+        color: white;
+      }
+
+      .topbar button.active {
+        background: #7c6af7;
+      }
+
+      .view {
+        display: none;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .view.active {
+        display: flex;
+      }
+
+      /* =========================
+         LIVE2D VIEW
+         ========================= */
+      #live2d-view {
+        padding: 24px;
+        gap: 24px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        overflow: auto;
+      }
+
+      .card {
+        margin-top: 14px;
+        padding: 12px;
+        background: #111827;
+        border-radius: 12px;
+      }
+
+      /* =========================
+         INOCHI VIEW
+         ========================= */
+      #inochi-view {
+        background: #1a1a2e;
+        overflow: hidden;
+      }
+
+      #sidebar {
+        width: 240px;
+        min-width: 240px;
+        background: #12122a;
+        display: flex;
+        flex-direction: column;
+        padding: 14px;
+        gap: 12px;
+        border-right: 1px solid #2a2a4a;
+        overflow-y: auto;
+      }
+
+      #sidebar h2 {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #555;
+        border-bottom: 1px solid #222240;
+        padding-bottom: 7px;
+        margin: 0;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .control-group label {
+        font-size: 0.76rem;
+        color: #888;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .control-group label span {
+        color: #ccc;
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: #7c6af7;
+        cursor: pointer;
+      }
+
+      #inochi-view button {
+        background: #7c6af7;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 7px 10px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        width: 100%;
+        transition: background 0.15s;
+      }
+
+      #inochi-view button:hover {
+        background: #6a57e0;
+      }
+
+      #inochi-view button.secondary {
+        background: #1e1e3a;
+        border: 1px solid #333360;
+        color: #888;
+      }
+
+      #inochi-view button.secondary:hover {
+        background: #2a2a4a;
+        color: #eee;
+      }
+
+      #file-label {
+        background: #1a1a38;
+        border: 1px dashed #3a3a6a;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        font-size: 0.78rem;
+        color: #666;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s;
+        line-height: 1.6;
+      }
+
+      #file-label:hover {
+        border-color: #7c6af7;
+        color: #bbb;
+      }
+
+      #model-file {
+        display: none;
+      }
+
+      #status {
+        font-size: 0.7rem;
+        color: #444;
+        text-align: center;
+      }
+
+      #params-section {
+        display: none;
+      }
+
+      #params-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .param-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .param-header {
+        font-size: 0.72rem;
+        color: #7c6af7;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .param-row {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .param-row label {
+        font-size: 0.7rem;
+        color: #666;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .param-row label span {
+        color: #aaa;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #canvas-container {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        cursor: grab;
+        background: #0d0d1a;
+      }
+
+      #canvas-container.grabbing {
+        cursor: grabbing;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #hud {
+        position: absolute;
+        bottom: 8px;
+        right: 10px;
+        font-size: 0.65rem;
+        color: #333;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+        line-height: 1.8;
+        text-align: right;
+      }
+    </style>
   </head>
 
-  <body style="margin:0; font-family:system-ui; background:#0b1020; color:white;">
-    <div style="display:flex; gap:24px; padding:24px; align-items:flex-start; flex-wrap:wrap;">
+  <body>
+    <div class="topbar">
+      <button id="btn-show-live2d" class="active">Ver Live2D</button>
+      <button id="btn-show-inochi">Ver Inochi2D</button>
+    </div>
+
+    <!-- =========================
+         LIVE2D VIEW
+         ========================= -->
+    <section id="live2d-view" class="view active">
       <div>
         <live2d-avatar
           id="avatar"
@@ -33,32 +299,444 @@
         </audio>
 
         <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-          <button id="play" style="padding:10px 12px;">Play + Lipsync</button>
-          <button id="stop" style="padding:10px 12px;">Stop Lipsync</button>
-          <button id="idle" style="padding:10px 12px;">State: idle</button>
-          <button id="speaking" style="padding:10px 12px;">State: speaking</button>
-          <button id="surprised" style="padding:10px 12px;">State: surprised</button>
+          <button id="play" style="padding:10px 12px; width:auto;">Play + Lipsync</button>
+          <button id="stop" style="padding:10px 12px; width:auto;">Stop Lipsync</button>
+          <button id="idle" style="padding:10px 12px; width:auto;">State: idle</button>
+          <button id="speaking" style="padding:10px 12px; width:auto;">State: speaking</button>
+          <button id="surprised" style="padding:10px 12px; width:auto;">State: surprised</button>
         </div>
 
-        <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
+        <div class="card">
           <div style="font-weight:600; margin-bottom:8px;">Cargar audio local</div>
           <input id="file" type="file" accept="audio/*" />
         </div>
 
-        <div style="margin-top:14px; padding:12px; background:#111827; border-radius:12px;">
+        <div class="card">
           <div style="font-weight:600; margin-bottom:8px;">Parámetros lipsync</div>
           <label style="display:block; margin:8px 0;">
             Gain:
-            <input id="gain" type="range" min="0" max="3" step="0.05" value="1.4" style="width:100%;" />
+            <input
+              id="gain"
+              type="range"
+              min="0"
+              max="3"
+              step="0.05"
+              value="1.4"
+              style="width:100%;"
+            />
           </label>
           <label style="display:block; margin:8px 0;">
             Smoothing:
-            <input id="smooth" type="range" min="0" max="0.98" step="0.01" value="0.85" style="width:100%;" />
+            <input
+              id="smooth"
+              type="range"
+              min="0"
+              max="0.98"
+              step="0.01"
+              value="0.85"
+              style="width:100%;"
+            />
           </label>
         </div>
       </div>
-    </div>
+    </section>
 
+    <!-- =========================
+         INOCHI VIEW
+         ========================= -->
+    <section id="inochi-view" class="view">
+      <div id="sidebar">
+        <h2>📁 Modelo</h2>
+        <label id="file-label" for="model-file">
+          🎭 Cargar modelo<br />
+          <small style="color:#444">.inp / .inx</small>
+        </label>
+        <input type="file" id="model-file" accept=".inp,.inx" />
+        <p id="status">Inochi2D aún no inicializado.</p>
+
+        <h2>📷 Cámara</h2>
+        <div class="control-group">
+          <label>Pos X <span id="val-x">0</span></label>
+          <input type="range" id="ctrl-x" min="-2000" max="2000" value="0" step="1" />
+        </div>
+        <div class="control-group">
+          <label>Pos Y <span id="val-y">0</span></label>
+          <input type="range" id="ctrl-y" min="-2000" max="2000" value="0" step="1" />
+        </div>
+        <div class="control-group">
+          <label>Zoom <span id="val-zoom">1.00</span>×</label>
+          <input type="range" id="ctrl-zoom" min="0.05" max="8" value="1" step="0.01" />
+        </div>
+        <div class="control-group">
+          <label>Rotación <span id="val-rot">0</span>°</label>
+          <input type="range" id="ctrl-rot" min="-180" max="180" value="0" step="1" />
+        </div>
+        <button class="secondary" id="btn-reset-cam">↺ Resetear cámara</button>
+
+        <div id="params-section">
+          <h2>🎛 Parámetros</h2>
+          <button class="secondary" id="btn-reset-params">↺ Resetear parámetros</button>
+          <div id="params-list"></div>
+        </div>
+      </div>
+
+      <div id="canvas-container">
+        <canvas id="inochi-canvas"></canvas>
+        <div id="hud">
+          x: <span id="hud-x">0</span> &nbsp; y: <span id="hud-y">0</span> &nbsp; zoom:
+          <span id="hud-zoom">1.00</span>× &nbsp; rot: <span id="hud-rot">0</span>°
+        </div>
+      </div>
+    </section>
+
+    <!-- Tu script actual de Live2D -->
     <script type="module" src="/src/index.ts"></script>
+
+    <!-- Script para alternar vistas + manejar Inochi -->
+    <script type="module">
+      import init, { InochiViewer } from './pkg/inochi_viewer.js';
+
+      const live2dView = document.getElementById('live2d-view');
+      const inochiView = document.getElementById('inochi-view');
+      const btnShowLive2D = document.getElementById('btn-show-live2d');
+      const btnShowInochi = document.getElementById('btn-show-inochi');
+      const live2dAudio = document.getElementById('audio');
+
+      function setActiveView(view) {
+        const showLive2D = view === 'live2d';
+
+        live2dView.classList.toggle('active', showLive2D);
+        inochiView.classList.toggle('active', !showLive2D);
+
+        btnShowLive2D.classList.toggle('active', showLive2D);
+        btnShowInochi.classList.toggle('active', !showLive2D);
+
+        if (!showLive2D && live2dAudio) {
+          live2dAudio.pause();
+        }
+
+        if (!showLive2D) {
+          initInochiOnce();
+          setTimeout(resizeCanvas, 0);
+        }
+      }
+
+      btnShowLive2D.addEventListener('click', () => setActiveView('live2d'));
+      btnShowInochi.addEventListener('click', () => setActiveView('inochi'));
+
+      // =========================
+      // Inochi2D
+      // =========================
+
+      let inochiInitialized = false;
+      let viewer = null;
+      let animFrameId = null;
+      const cam = { x: 0, y: 0, zoom: 1.0, rot: 0 };
+      const paramState = {};
+      const paramDefaults = {};
+
+      const status = document.getElementById('status');
+      const canvas = document.getElementById('inochi-canvas');
+      const container = document.getElementById('canvas-container');
+      const ctrlX = document.getElementById('ctrl-x');
+      const ctrlY = document.getElementById('ctrl-y');
+      const ctrlZoom = document.getElementById('ctrl-zoom');
+      const ctrlRot = document.getElementById('ctrl-rot');
+      const valX = document.getElementById('val-x');
+      const valY = document.getElementById('val-y');
+      const valZoom = document.getElementById('val-zoom');
+      const valRot = document.getElementById('val-rot');
+      const hudX = document.getElementById('hud-x');
+      const hudY = document.getElementById('hud-y');
+      const hudZoom = document.getElementById('hud-zoom');
+      const hudRot = document.getElementById('hud-rot');
+
+      async function initInochiOnce() {
+        if (inochiInitialized) return;
+        inochiInitialized = true;
+
+        status.textContent = 'Cargando WASM...';
+        await init();
+        status.textContent = 'Listo. Carga un modelo.';
+
+        new ResizeObserver(resizeCanvas).observe(container);
+        resizeCanvas();
+      }
+
+      function resizeCanvas() {
+        if (!container || !canvas) return;
+
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+
+        if (w <= 0 || h <= 0) return;
+
+        canvas.width = w;
+        canvas.height = h;
+
+        if (viewer) viewer.resize(w, h);
+      }
+
+      function loop(ts) {
+        if (viewer) {
+          for (const [name, val] of Object.entries(paramState)) {
+            viewer.set_param(name, val.x, val.y);
+          }
+          viewer.render(ts);
+        }
+        animFrameId = requestAnimationFrame(loop);
+      }
+
+      document.getElementById('model-file').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        await initInochiOnce();
+        status.textContent = `Cargando ${file.name}...`;
+
+        try {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+
+          if (animFrameId) cancelAnimationFrame(animFrameId);
+
+          viewer = new InochiViewer('inochi-canvas', bytes);
+          applyCam();
+          buildParamControls();
+          resizeCanvas();
+
+          status.textContent = `✅ ${file.name}`;
+          document.getElementById('file-label').innerHTML =
+            `🎭 ${file.name}<br/><small style="color:#444">clic para cambiar</small>`;
+
+          animFrameId = requestAnimationFrame(loop);
+        } catch (err) {
+          status.textContent = `❌ ${err}`;
+          console.error(err);
+        }
+      });
+
+      function buildParamControls() {
+        const list = document.getElementById('params-list');
+        list.innerHTML = '';
+
+        for (const key of Object.keys(paramState)) delete paramState[key];
+        for (const key of Object.keys(paramDefaults)) delete paramDefaults[key];
+
+        let params;
+        try {
+          params = JSON.parse(viewer.get_params_json());
+        } catch (e) {
+          console.warn('No se pudieron leer parámetros:', e);
+          return;
+        }
+
+        if (!params.length) return;
+
+        for (const param of params) {
+          const { name, min_x, min_y, max_x, max_y, def_x, def_y, is_vec2 } = param;
+
+          paramDefaults[name] = { x: def_x, y: def_y };
+          paramState[name] = { x: def_x, y: def_y };
+
+          const item = document.createElement('div');
+          item.className = 'param-item';
+
+          const header = document.createElement('div');
+          header.className = 'param-header';
+          header.textContent = name;
+          header.title = name;
+          item.appendChild(header);
+
+          item.appendChild(makeParamSlider(name, 'x', min_x, max_x, def_x));
+
+          if (is_vec2) {
+            item.appendChild(makeParamSlider(name, 'y', min_y, max_y, def_y));
+          }
+
+          list.appendChild(item);
+        }
+
+        document.getElementById('params-section').style.display = 'block';
+      }
+
+      function makeParamSlider(paramName, axis, minVal, maxVal, defaultVal) {
+        const row = document.createElement('div');
+        row.className = 'param-row';
+
+        const id = `param-${paramName}-${axis}`.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const step = (maxVal - minVal) / 200 || 0.01;
+
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.innerHTML = `${axis.toUpperCase()} <span id="${id}-val">${defaultVal.toFixed(2)}</span>`;
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.id = id;
+        slider.min = minVal;
+        slider.max = maxVal;
+        slider.step = step;
+        slider.value = defaultVal;
+        slider.defaultValue = defaultVal;
+
+        slider.addEventListener('input', () => {
+          const v = parseFloat(slider.value);
+          paramState[paramName][axis] = v;
+          document.getElementById(`${id}-val`).textContent = v.toFixed(2);
+        });
+
+        row.appendChild(label);
+        row.appendChild(slider);
+        return row;
+      }
+
+      function resetParams() {
+        for (const [name, def] of Object.entries(paramDefaults)) {
+          paramState[name].x = def.x;
+          paramState[name].y = def.y;
+
+          for (const axis of ['x', 'y']) {
+            const id = `param-${name}-${axis}`.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const slider = document.getElementById(id);
+            const valEl = document.getElementById(`${id}-val`);
+            if (slider) {
+              slider.value = slider.defaultValue;
+              if (valEl) valEl.textContent = parseFloat(slider.defaultValue).toFixed(2);
+            }
+          }
+        }
+      }
+
+      document.getElementById('btn-reset-params').addEventListener('click', resetParams);
+
+      function applyCam() {
+        if (!viewer) return;
+
+        viewer.set_camera(cam.x, cam.y, cam.zoom, (cam.rot * Math.PI) / 180);
+
+        valX.textContent = Math.round(cam.x);
+        valY.textContent = Math.round(cam.y);
+        valZoom.textContent = cam.zoom.toFixed(2);
+        valRot.textContent = Math.round(cam.rot);
+
+        hudX.textContent = Math.round(cam.x);
+        hudY.textContent = Math.round(cam.y);
+        hudZoom.textContent = cam.zoom.toFixed(2);
+        hudRot.textContent = Math.round(cam.rot);
+
+        ctrlX.value = Math.max(-2000, Math.min(2000, cam.x));
+        ctrlY.value = Math.max(-2000, Math.min(2000, cam.y));
+        ctrlZoom.value = cam.zoom;
+        ctrlRot.value = cam.rot;
+      }
+
+      ctrlX.addEventListener('input', (e) => {
+        cam.x = +e.target.value;
+        applyCam();
+      });
+
+      ctrlY.addEventListener('input', (e) => {
+        cam.y = +e.target.value;
+        applyCam();
+      });
+
+      ctrlZoom.addEventListener('input', (e) => {
+        cam.zoom = +e.target.value;
+        applyCam();
+      });
+
+      ctrlRot.addEventListener('input', (e) => {
+        cam.rot = +e.target.value;
+        applyCam();
+      });
+
+      document.getElementById('btn-reset-cam').addEventListener('click', () => {
+        cam.x = 0;
+        cam.y = 0;
+        cam.zoom = 1;
+        cam.rot = 0;
+        applyCam();
+      });
+
+      let drag = null;
+
+      container.addEventListener('mousedown', (e) => {
+        drag = { startX: e.clientX, startY: e.clientY, camX: cam.x, camY: cam.y };
+        container.classList.add('grabbing');
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!drag) return;
+        cam.x = drag.camX + (e.clientX - drag.startX) / cam.zoom;
+        cam.y = drag.camY + (e.clientY - drag.startY) / cam.zoom;
+        applyCam();
+      });
+
+      window.addEventListener('mouseup', () => {
+        drag = null;
+        container.classList.remove('grabbing');
+      });
+
+      container.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault();
+          cam.zoom = Math.max(0.05, Math.min(8, cam.zoom * (e.deltaY > 0 ? 0.92 : 1.08)));
+          applyCam();
+        },
+        { passive: false }
+      );
+
+      let touches = {};
+      let lastPinchDist = null;
+
+      container.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          for (const t of e.changedTouches) {
+            touches[t.identifier] = { x: t.clientX, y: t.clientY };
+          }
+          if (Object.keys(touches).length === 1) {
+            const [t] = Object.values(touches);
+            drag = { startX: t.x, startY: t.y, camX: cam.x, camY: cam.y };
+          }
+        },
+        { passive: false }
+      );
+
+      container.addEventListener(
+        'touchmove',
+        (e) => {
+          e.preventDefault();
+          for (const t of e.changedTouches) {
+            touches[t.identifier] = { x: t.clientX, y: t.clientY };
+          }
+
+          const pts = Object.values(touches);
+
+          if (pts.length === 2) {
+            const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            if (lastPinchDist !== null) {
+              cam.zoom = Math.max(0.05, Math.min(8, cam.zoom * (dist / lastPinchDist)));
+            }
+            lastPinchDist = dist;
+            drag = null;
+            applyCam();
+          } else if (pts.length === 1 && drag) {
+            cam.x = drag.camX - (pts[0].x - drag.startX) / cam.zoom;
+            cam.y = drag.camY - (pts[0].y - drag.startY) / cam.zoom;
+            applyCam();
+          }
+        },
+        { passive: false }
+      );
+
+      container.addEventListener('touchend', (e) => {
+        for (const t of e.changedTouches) delete touches[t.identifier];
+        lastPinchDist = null;
+        if (Object.keys(touches).length === 0) drag = null;
+      });
+    </script>
   </body>
 </html>
