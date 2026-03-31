@@ -6,19 +6,12 @@ export class InochiViewer {
     [Symbol.dispose](): void;
     get_camera_x(): number;
     get_camera_y(): number;
-    /**
-     * Devuelve JSON con todos los parámetros y sus rangos:
-     * [{"name":"...","min_x":f,"min_y":f,"max_x":f,"max_y":f,"def_x":f,"def_y":f,"is_vec2":b}]
-     */
     get_params_json(): string;
     get_zoom(): number;
     constructor(canvas_id: string, model_data: Uint8Array);
     render(timestamp: number): void;
     resize(width: number, height: number): void;
     set_camera(x: number, y: number, zoom: number, rotation: number): void;
-    /**
-     * Encola un parámetro para el siguiente frame.
-     */
     set_param(name: string, x: number, y: number): void;
     set_position(x: number, y: number): void;
     set_rotation(radians: number): void;

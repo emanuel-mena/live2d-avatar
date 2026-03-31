@@ -26,8 +26,6 @@ export class InochiViewer {
         return ret;
     }
     /**
-     * Devuelve JSON con todos los parámetros y sus rangos:
-     * [{"name":"...","min_x":f,"min_y":f,"max_x":f,"max_y":f,"def_x":f,"def_y":f,"is_vec2":b}]
      * @returns {string}
      */
     get_params_json() {
@@ -89,7 +87,6 @@ export class InochiViewer {
         wasm.inochiviewer_set_camera(this.__wbg_ptr, x, y, zoom, rotation);
     }
     /**
-     * Encola un parámetro para el siguiente frame.
      * @param {string} name
      * @param {number} x
      * @param {number} y
